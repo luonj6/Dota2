@@ -1,0 +1,52 @@
+/home/zhangjunhao/anaconda3/envs/deepcl/lib/python3.7/site-packages/sklearn/utils/validation.py:37: DeprecationWarning: distutils Version classes are deprecated. Use packaging.version instead.
+  LARGE_SPARSE_SUPPORTED = LooseVersion(scipy_version) >= '0.14.0'
+
+==================== Start Running with Seed: 1 ====================
+==> Random Seed Set to: 1
+cuda
+
+Data Loading & Preprocessing Done (Caltech101-20):
+Total Samples: 2386
+View 1 (HOG)  Shape: (2386, 1984), Range: [-4.01, 6.38]
+View 2 (LBP)  Shape: (2386, 928), Range: [-6.19, 14.53]
+View 3 (GIST) Shape: (2386, 512), Range: [-2.67, 9.74]
+--------------------------------------------------
+
+========================================
+🔥 Stage 0: Starting AE Pretraining...
+Pretrain Epoch [20/100] | MSE Loss: 1.5756
+Pretrain Epoch [40/100] | MSE Loss: 1.1731
+Pretrain Epoch [60/100] | MSE Loss: 0.9416
+Pretrain Epoch [80/100] | MSE Loss: 0.8108
+Pretrain Epoch [100/100] | MSE Loss: 0.7216
+✅ AE Pretraining Completed! Latent space initialized.
+
+========================================
+🚀 Starting Alternating Optimization Training...
+Epoch [10/100] | Loss C: 92137.0938 | Loss Net: 94097.3984 | InfoNCE: 6.9910
+Epoch [20/100] | Loss C: 37021.3867 | Loss Net: 36611.7148 | InfoNCE: 7.1911
+Epoch [30/100] | Loss C: 19367.1523 | Loss Net: 18779.8828 | InfoNCE: 7.2210
+Epoch [40/100] | Loss C: 11739.4189 | Loss Net: 11228.3975 | InfoNCE: 7.2558
+Epoch [50/100] | Loss C: 8154.0210 | Loss Net: 7670.0229 | InfoNCE: 7.2757
+Epoch [60/100] | Loss C: 6243.7798 | Loss Net: 5776.0781 | InfoNCE: 7.2937
+Epoch [70/100] | Loss C: 5082.2354 | Loss Net: 4618.9341 | InfoNCE: 7.3060
+Epoch [80/100] | Loss C: 4308.4209 | Loss Net: 3844.1938 | InfoNCE: 7.3115
+Epoch [90/100] | Loss C: 3750.3396 | Loss Net: 3284.4302 | InfoNCE: 7.3189
+Epoch [100/100] | Loss C: 3325.7241 | Loss Net: 2857.4797 | InfoNCE: 7.3256
+✅ Training Completed!
+
+========================================
+📊 Evaluating Final Clustering Performance...
+/home/zhangjunhao/anaconda3/envs/deepcl/lib/python3.7/site-packages/sklearn/metrics/cluster/supervised.py:844: FutureWarning: The behavior of NMI will change in version 0.22. To match the behavior of 'v_measure_score', NMI will use average_method='arithmetic' by default.
+  FutureWarning)
+🌟 Method 1: Network Direct Prediction (H_IN)
+   ACC: 0.2246 | NMI: 0.0924 | ARI: 0.0214
+/home/zhangjunhao/anaconda3/envs/deepcl/lib/python3.7/site-packages/sklearn/metrics/cluster/supervised.py:844: FutureWarning: The behavior of NMI will change in version 0.22. To match the behavior of 'v_measure_score', NMI will use average_method='arithmetic' by default.
+  FutureWarning)
+
+🌟 Method 2: K-Means on Fused Z_global
+   ACC: 0.3449 | NMI: 0.4721 | ARI: 0.2074
+
+Final Learned View Weights: HOG=0.3274, LBP=0.3381, GIST=0.3346
+========================================
+
