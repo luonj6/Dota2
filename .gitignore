@@ -1,5 +1,4 @@
 _pycache__/
 Caltech101-20.mat
 uci-digit_m.mat
-log1.txt
-log2.txt
+results/
