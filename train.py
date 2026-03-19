@@ -45,7 +45,7 @@ for seed in seeds:
     print(device)
     import os
     os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"
-    os.environ["CUDA_VISIBLE_DEVICES"]='1' 
+    os.environ["CUDA_VISIBLE_DEVICES"]='0' 
 
 
 
@@ -262,8 +262,6 @@ for seed in seeds:
     print("✅ AE Pretraining Completed! Latent space initialized.")
 
 
-
-
     # ==========================================
     # 核心创新：交替优化的双优化器配置
     # ==========================================
@@ -320,36 +318,109 @@ for seed in seeds:
             loss_C.backward()
             optimizer_C.step()
 
+            # # ====================================================
+            # # Phase 2: 冻结图 C，更新网络 (多视图提取与语义对齐)
+            # # ====================================================
+            # optimizer_Net.zero_grad()
+            # # 重新 Forward，获取更新了 C 之后的计算图
+            # z1, z2, z3, z_global, C_graph, weights, H_IN = model(input1, input2, input3)
+            
+            # # 2.1 提取确信正样本 P (来自冻结的图 C)
+            # C_abs = torch.abs(C_graph.detach())
+            # A_sym = (C_abs + C_abs.t()) / 2.0
+            # _, topk_indices = torch.topk(A_sym, k=K, dim=1)
+            
+            # # 2.2 共识重构 Loss (拉扯 Encoder)
+            # recon_loss_net = weights[0] * torch.sum((z1 - torch.matmul(C_graph.detach(), z1)) ** 2) + \
+            #                  weights[1] * torch.sum((z2 - torch.matmul(C_graph.detach(), z2)) ** 2) + \
+            #                  weights[2] * torch.sum((z3 - torch.matmul(C_graph.detach(), z3)) ** 2)
+            
+            # # 2.3 InfoNCE Loss (拉拢兄弟，推开路人)
+            # z_norm = F.normalize(z_global, dim=1)
+            # sim_matrix = torch.matmul(z_norm, z_norm.t()) / tau
+            # sim_matrix.fill_diagonal_(-1e9)
+            # log_prob = F.log_softmax(sim_matrix, dim=1)
+            
+            # mask = torch.zeros((N, N)).to(device)
+            # mask.scatter_(1, topk_indices, 1.0)
+            # loss_contrastive = - (mask * log_prob).sum(dim=1) / K
+            # loss_contrastive = loss_contrastive.mean()
+            
+            # # =======================================================
+            # # 2.5 [新增] 终极防坍塌法宝：边缘熵正则化 (Marginal Entropy)
+            # # =======================================================
+            # # 1. 求出整个 Batch 在 20 个类上的平均预测概率
+            # p_mean = H_IN.mean(dim=0) # 形状为 [20]
+            
+            # # 2. 我们希望这个 p_mean 越接近均匀分布 (1/20) 越好
+            # # 根据信息论，最小化 sum(p * log(p)) 就是在强迫 p 变成均匀分布
+            # epsilon = 1e-8 # 防止 log(0) 报错
+            # loss_reg_entropy = torch.sum(p_mean * torch.log(p_mean + epsilon))
+            
+            # # =======================================================
+            # # 2.6 网络总 Loss 并反向传播
+            # # =======================================================
+            # eta = 1.0 # 熵正则化的权重系数
+            
+            # # 把这把“防坍塌大锁”加进总 Loss 里
+            # loss_Net = recon_loss_net + gamma * loss_contrastive + eta * loss_reg_entropy
+
+
+
+            # ############
+            # # # 2.4 网络总 Loss 并反向传播
+            # # loss_Net = recon_loss_net + gamma * loss_contrastive
+
+            # loss_Net.backward()
+            # optimizer_Net.step()
+
+
             # ====================================================
             # Phase 2: 冻结图 C，更新网络 (多视图提取与语义对齐)
             # ====================================================
             optimizer_Net.zero_grad()
-            # 重新 Forward，获取更新了 C 之后的计算图
             z1, z2, z3, z_global, C_graph, weights, H_IN = model(input1, input2, input3)
             
-            # 2.1 提取确信正样本 P (来自冻结的图 C)
             C_abs = torch.abs(C_graph.detach())
             A_sym = (C_abs + C_abs.t()) / 2.0
             _, topk_indices = torch.topk(A_sym, k=K, dim=1)
             
-            # 2.2 共识重构 Loss (拉扯 Encoder)
             recon_loss_net = weights[0] * torch.sum((z1 - torch.matmul(C_graph.detach(), z1)) ** 2) + \
                              weights[1] * torch.sum((z2 - torch.matmul(C_graph.detach(), z2)) ** 2) + \
                              weights[2] * torch.sum((z3 - torch.matmul(C_graph.detach(), z3)) ** 2)
             
-            # 2.3 InfoNCE Loss (拉拢兄弟，推开路人)
-            z_norm = F.normalize(z_global, dim=1)
-            sim_matrix = torch.matmul(z_norm, z_norm.t()) / tau
-            sim_matrix.fill_diagonal_(-1e9)
-            log_prob = F.log_softmax(sim_matrix, dim=1)
-            
+            # =======================================================
+            # 2.3 [修复] 双层 InfoNCE Loss：真正激活聚类头！
+            # =======================================================
             mask = torch.zeros((N, N)).to(device)
             mask.scatter_(1, topk_indices, 1.0)
-            loss_contrastive = - (mask * log_prob).sum(dim=1) / K
-            loss_contrastive = loss_contrastive.mean()
+
+            # 第一层：实例级 (维持 Z_global 的流形结构)
+            z_norm = F.normalize(z_global, dim=1)
+            sim_z = torch.matmul(z_norm, z_norm.t()) / tau
+            sim_z.fill_diagonal_(-1e9)
+            loss_nce_z = - (mask * F.log_softmax(sim_z, dim=1)).sum(dim=1) / K
+            loss_nce_z = loss_nce_z.mean()
             
-            # 2.4 网络总 Loss 并反向传播
-            loss_Net = recon_loss_net + gamma * loss_contrastive
+            # 第二层：语义级 (强制要求兄弟样本的“分类概率分布”高度一致)
+            h_norm = F.normalize(H_IN, dim=1)
+            sim_h = torch.matmul(h_norm, h_norm.t()) / tau
+            sim_h.fill_diagonal_(-1e9)
+            loss_nce_h = - (mask * F.log_softmax(sim_h, dim=1)).sum(dim=1) / K
+            loss_nce_h = loss_nce_h.mean()
+            
+            # 融合对比损失
+            loss_contrastive = loss_nce_z + loss_nce_h
+            
+            # 2.4 边缘熵正则化 (防止分类头退化为均匀常数)
+            p_mean = H_IN.mean(dim=0)
+            epsilon = 1e-8
+            loss_reg_entropy = torch.sum(p_mean * torch.log(p_mean + epsilon))
+            
+            # 2.5 网络总 Loss 并反向传播
+            eta = 1.0 # 熵正则化权重
+            loss_Net = recon_loss_net + gamma * loss_contrastive + eta * loss_reg_entropy
+            
             loss_Net.backward()
             optimizer_Net.step()
 
